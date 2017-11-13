@@ -4,11 +4,17 @@ Notification Consumer HTTP-based API enpoints
 
 import logging
 
+from django.http import Http404
+from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from django.http import Http404
-
+from edx_notifications import const
+from edx_notifications.data import NotificationMessage
+from edx_notifications.exceptions import (
+    ItemNotFoundError,
+)
 from edx_notifications.lib.consumer import (
     get_notifications_count_for_user,
     get_notifications_for_user,
@@ -20,18 +26,15 @@ from edx_notifications.lib.consumer import (
     get_user_preference_by_name,
     set_user_notification_preference
 )
-
+from edx_notifications.lib.publisher import get_notification_type, \
+    bulk_publish_notification_to_users
 from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
-
-from edx_notifications.exceptions import (
-    ItemNotFoundError,
-)
-
-from edx_notifications import const
-
+from student.models import User
 from .api_utils import AuthenticatedAPIView
+
+NAMESPACE = 'philu/notifications'
 
 LOG = logging.getLogger("api")
 
@@ -158,6 +161,42 @@ class NotificationsList(AuthenticatedAPIView):
         resultset = [user_msg.get_fields() for user_msg in user_msgs]
 
         return Response(resultset, status.HTTP_200_OK)
+
+    def post(self, request):
+        """
+        HTTP GET Handler
+        """
+        notification_data = request.data
+        user_ids = []
+
+        for user in notification_data.get('user', []):
+            try:
+                user = User.objects.get(username=user['user_name'])
+                user_ids.append(user.id)
+            except User.DoesNotExist:
+                return JsonResponse({'message': "User does not exist for provided username"},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+        type_name = self.get_notification_type(notification_data['type'])
+        msg_type = get_notification_type(type_name)
+
+        msg = NotificationMessage(
+            msg_type=msg_type,
+            namespace=NAMESPACE,
+            payload=self.generate_payload(notification_data),
+        )
+        bulk_publish_notification_to_users(user_ids, msg)
+
+        return Response([], status.HTTP_200_OK)
+
+    def generate_payload(self, notification_data):
+        payload = dict(notification_data)
+        payload.pop('user', None)
+        return payload
+
+    def get_notification_type(self, notification_type):
+        # TODO: handle nodebb and edx notification types
+        return 'philu.nodebb.%s' % notification_type
 
 
 def _find_notification_by_id(user_id, msg_id):
@@ -314,7 +353,7 @@ class UserPreferenceDetail(AuthenticatedAPIView):
 
                 if is_digest_setting and value.lower() == 'true':
                     other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if name \
-                        == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
+                                                                                       == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
                         const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME
 
                     # turn off the other setting
