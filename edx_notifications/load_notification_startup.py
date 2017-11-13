@@ -4,11 +4,11 @@ One time initialization of the Notification subsystem
 
 from django.dispatch import receiver
 
-from common.djangoapps.edx_notifications.lib.publisher import (
+from edx_notifications.lib.publisher import (
     register_notification_type,
 )
 
-from common.djangoapps.edx_notifications.data import (
+from edx_notifications.data import (
     NotificationType,
 )
 
