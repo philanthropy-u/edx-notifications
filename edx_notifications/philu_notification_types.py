@@ -1,11 +1,14 @@
-NOTIFICATION_TYPES = [
-    'new-topic',
-    'new-reply',
-    'new-chat',
-    'follow',
-    'upvote',
-    'new-post-flag',
-    'my-flags',
-    'ban',
-    'mention',
-]
+NAMESPACE = 'philu'
+
+NOTIFICATION_TYPES = {
+    'nodebb': ['new-topic',
+               'new-reply',
+               'new-chat',
+               'follow',
+               'upvote',
+               'new-post-flag',
+               'my-flags',
+               'ban',
+               'mention',
+               ]
+}

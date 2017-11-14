@@ -8,7 +8,7 @@ from django.http import Http404
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from student.models import User
 
 from edx_notifications import const
 from edx_notifications.data import NotificationMessage
@@ -28,13 +28,11 @@ from edx_notifications.lib.consumer import (
 )
 from edx_notifications.lib.publisher import get_notification_type, \
     bulk_publish_notification_to_users
+from edx_notifications.philu_notification_types import NAMESPACE
 from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
-from student.models import User
-from .api_utils import AuthenticatedAPIView
-
-NAMESPACE = 'philu/notifications'
+from edx_notifications.server.api.api_utils import AuthenticatedAPIView
 
 LOG = logging.getLogger("api")
 
@@ -166,8 +164,11 @@ class NotificationsList(AuthenticatedAPIView):
         """
         HTTP POST Handler
         """
-        notification_data = request.data['notification']
-        usernames = request.data['usernames']
+        notification_data = request.data.get('notification') or request.data.get('message')
+
+        usernames = request.data.get('usernames', [])
+        if not (notification_data and usernames):
+            return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
 
         user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
         type_name = self.get_notification_type(notification_data['type'])
@@ -176,19 +177,14 @@ class NotificationsList(AuthenticatedAPIView):
         msg = NotificationMessage(
             msg_type=msg_type,
             namespace=NAMESPACE,
-            payload=self.generate_payload(notification_data),
+            payload=notification_data,
         )
         bulk_publish_notification_to_users(user_ids, msg)
 
         return Response([], status.HTTP_200_OK)
 
-    def generate_payload(self, notification_data):
-        payload = dict(notification_data)
-        payload.pop('user', None)
-        return payload
-
     def get_notification_type(self, notification_type):
-        # TODO: handle nodebb and edx notification types
+        # TODO: handle nodebb and edx notification types dynamically
         return 'philu.nodebb.%s' % notification_type
 
 
@@ -293,6 +289,7 @@ class UserPreferenceList(AuthenticatedAPIView):
     """
     Returns all preference setting for the request.user
     """
+
     def get(self, request):
         """
         HTTP Get Handler
@@ -308,6 +305,7 @@ class UserPreferenceDetail(AuthenticatedAPIView):
     GET returns the specific preference setting for the authenticated request.user
     POST sets the preference for the authenticated request.user
     """
+
     def get(self, request, name):
         """
         HTTP Get Handler
