@@ -165,7 +165,7 @@ class NotificationsList(AuthenticatedAPIView):
     def get_unread_count(self, results):
         count = 0
         for r in results:
-            if not r.read_at:
+            if not r["read_at"]:
                 count += 1
         return count
 
