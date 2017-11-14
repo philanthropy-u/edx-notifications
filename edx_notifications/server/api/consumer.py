@@ -155,10 +155,19 @@ class NotificationsList(AuthenticatedAPIView):
             filters=filters,
             options=options,
         )
-
         resultset = [user_msg.get_fields() for user_msg in user_msgs]
+        response_data = {
+            'notifications': resultset,
+            'unread_count': self.get_unread_count(resultset)
+        }
+        return Response(response_data, status.HTTP_200_OK)
 
-        return Response(resultset, status.HTTP_200_OK)
+    def get_unread_count(self, results):
+        count = 0
+        for r in results:
+            if not r.read_at:
+                count += 1
+        return count
 
     def post(self, request):
         """
