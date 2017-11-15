@@ -347,8 +347,8 @@ class UserPreferenceDetail(AuthenticatedAPIView):
                 )
 
                 if is_digest_setting and value.lower() == 'true':
-                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if name \
-                                                                                       == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
+                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if \
+                        name == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
                         const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME
 
                     # turn off the other setting
