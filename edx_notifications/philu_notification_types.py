@@ -10,5 +10,6 @@ NOTIFICATION_TYPES = {
                'my-flags',
                'ban',
                'mention',
+               'message'
                ]
 }
