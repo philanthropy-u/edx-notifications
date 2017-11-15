@@ -15,6 +15,8 @@ from edx_notifications.data import NotificationMessage
 from edx_notifications.exceptions import (
     ItemNotFoundError,
 )
+from edx_notifications.openedx.philu import PHILU_NOTIFICATION_PREFIX
+
 from edx_notifications.lib.consumer import (
     get_notifications_count_for_user,
     get_notifications_for_user,
@@ -28,7 +30,6 @@ from edx_notifications.lib.consumer import (
 )
 from edx_notifications.lib.publisher import get_notification_type, \
     bulk_publish_notification_to_users
-from edx_notifications.philu_notification_types import NAMESPACE
 from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
@@ -179,7 +180,7 @@ class NotificationsList(AuthenticatedAPIView):
 
         msg = NotificationMessage(
             msg_type=msg_type,
-            namespace=NAMESPACE,
+            namespace=PHILU_NOTIFICATION_PREFIX,
             payload=notification_data,
         )
         bulk_publish_notification_to_users(user_ids, msg)
@@ -188,7 +189,7 @@ class NotificationsList(AuthenticatedAPIView):
 
     def get_notification_type(self, notification_type):
         # TODO: handle nodebb and edx notification types dynamically
-        return 'philu.nodebb.%s' % notification_type
+        return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
 
 
 def _find_notification_by_id(user_id, msg_id):
