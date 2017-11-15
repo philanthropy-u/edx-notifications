@@ -158,7 +158,7 @@ class NotificationsList(AuthenticatedAPIView):
         resultset = [user_msg.get_fields() for user_msg in user_msgs]
         response_data = {
             'notifications': resultset,
-            'unread_count': sum([not notification['read'] for notification in resultset])
+            'unread_count': sum([not notification['read_at'] for notification in resultset])
         }
         return Response(response_data, status.HTTP_200_OK)
 
@@ -166,7 +166,8 @@ class NotificationsList(AuthenticatedAPIView):
         """
         HTTP POST Handler
         """
-        notification_data = request.data.get('notification') or request.data.get('message')
+        notification_data = request.data.get('notification')
+        notification_data['from_user'] = request.data.get('fromUsername', '')
 
         usernames = request.data.get('usernames', [])
         if not (notification_data and usernames):
