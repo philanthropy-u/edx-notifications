@@ -14,6 +14,9 @@ from django.dispatch import receiver
 
 PHILU_NOTIFICATION_PREFIX = u'philu.nodebb'
 
+class NotificationSources(object):
+    NODE_BB = 'nodebb'
+
 
 class NodeBBNotificationMessageTypes(object):
     """
