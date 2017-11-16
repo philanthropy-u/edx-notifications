@@ -184,7 +184,7 @@ class NotificationsList(AuthenticatedAPIView):
         msg = NotificationMessage(
             msg_type=msg_type,
             namespace=PHILU_NOTIFICATION_PREFIX,
-            payload        =notification_data,
+            payload=notification_data,
         )
         bulk_publish_notification_to_users(user_ids, msg)
 
