@@ -195,6 +195,9 @@ class NotificationsList(AuthenticatedAPIView):
         return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
 
     def generate_full_path_url(self, notification_source, path):
+        """
+        Create absolute url from relative url, depending on source
+        """
         if notification_source == NotificationSources.NODE_BB:
             return urlparse.urljoin(settings.NODEBB_ENDPOINT, path)
         return path
