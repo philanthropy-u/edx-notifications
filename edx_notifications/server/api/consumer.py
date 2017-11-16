@@ -198,9 +198,8 @@ class NotificationsList(AuthenticatedAPIView):
         """
         Create absolute url from relative url, depending on source
         """
-        if notification_source == NotificationSources.NODE_BB:
-            return urlparse.urljoin(settings.NODEBB_ENDPOINT, path)
-        return path
+        #TODO: handle it dynamically
+        return settings.NODEBB_ENDPOINT + path
 
 
 def _find_notification_by_id(user_id, msg_id):
