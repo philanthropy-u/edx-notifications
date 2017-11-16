@@ -3,7 +3,9 @@ Notification Consumer HTTP-based API enpoints
 """
 
 import logging
+import urlparse
 
+from django.conf import settings
 from django.http import Http404
 from django.http import JsonResponse
 from rest_framework import status
@@ -15,7 +17,7 @@ from edx_notifications.data import NotificationMessage
 from edx_notifications.exceptions import (
     ItemNotFoundError,
 )
-from edx_notifications.openedx.philu import PHILU_NOTIFICATION_PREFIX
+from edx_notifications.openedx.philu import PHILU_NOTIFICATION_PREFIX, NotificationSources
 
 from edx_notifications.lib.consumer import (
     get_notifications_count_for_user,
@@ -176,6 +178,7 @@ class NotificationsList(AuthenticatedAPIView):
 
         user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
         type_name = self.get_notification_type(notification_data['type'])
+        notification_data['path'] = self.generate_full_path_url(notification_data['source'], notification_data['path'])
         msg_type = get_notification_type(type_name)
 
         msg = NotificationMessage(
@@ -190,6 +193,14 @@ class NotificationsList(AuthenticatedAPIView):
     def get_notification_type(self, notification_type):
         # TODO: handle nodebb and edx notification types dynamically
         return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
+
+    def generate_full_path_url(self, notification_source, path):
+        """
+        Create absolute url from relative url, depending on source
+        """
+        if notification_source == NotificationSources.NODE_BB:
+            return urlparse.urljoin(settings.NODEBB_ENDPOINT, path)
+        return path
 
 
 def _find_notification_by_id(user_id, msg_id):
