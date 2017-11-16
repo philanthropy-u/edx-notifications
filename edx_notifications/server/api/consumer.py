@@ -184,7 +184,7 @@ class NotificationsList(AuthenticatedAPIView):
         msg = NotificationMessage(
             msg_type=msg_type,
             namespace=PHILU_NOTIFICATION_PREFIX,
-            payload=notification_data,
+            payload        =notification_data,
         )
         bulk_publish_notification_to_users(user_ids, msg)
 
@@ -198,9 +198,8 @@ class NotificationsList(AuthenticatedAPIView):
         """
         Create absolute url from relative url, depending on source
         """
-        if notification_source == NotificationSources.NODE_BB:
-            return urlparse.urljoin(settings.NODEBB_ENDPOINT, path)
-        return path
+        #TODO: handle it dynamically
+        return settings.NODEBB_ENDPOINT + path
 
 
 def _find_notification_by_id(user_id, msg_id):
