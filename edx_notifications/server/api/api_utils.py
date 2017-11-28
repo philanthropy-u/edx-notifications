@@ -1,6 +1,7 @@
 """
 Helpers for the HTTP APIs
 """
+import json
 
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication, BaseAuthentication
@@ -17,9 +18,16 @@ class CustomTokenSessionAuthentication(BaseAuthentication):
 
     def authenticate(self, request):
         """
-        Returns a `User` if the client sending correct master token & username.
+        Returns a `User`
+         - if user already logged-in
+         - if the client sending correct master token & username.
         Otherwise returns `None`.
         """
+
+        if request.COOKIES and request.COOKIES.get('sessionid'):
+            username = json.loads(request.COOKIES.get('edx-user-info', '{}')).get('username')
+            user = User.objects.get(username=username)
+            return (user, None)
 
         username = request.GET.get('username')
         token = request.GET.get("token")
