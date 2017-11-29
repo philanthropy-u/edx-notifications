@@ -174,7 +174,7 @@ class NotificationsList(AuthenticatedAPIView):
         notification_data['from_user'] = from_username
 
         usernames = request.data.get('usernames', [])
-        usernames = [username for username in usernames if username != from_username]
+        usernames.remove(from_username)
 
         if not (notification_data and usernames):
             return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
