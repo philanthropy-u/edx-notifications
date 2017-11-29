@@ -8,7 +8,6 @@ import urlparse
 from django.conf import settings
 from django.http import Http404
 from django.http import JsonResponse
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.response import Response
 from student.models import User
@@ -171,14 +170,16 @@ class NotificationsList(AuthenticatedAPIView):
         HTTP POST Handler
         """
         notification_data = request.data.get('notification')
-        notification_data['from_user'] = request.data.get('fromUsername', '')
-        sender_id = request.data.get('fromUid')
+        from_username = request.data.get('fromUsername', '')
+        notification_data['from_user'] = from_username
 
         usernames = request.data.get('usernames', [])
+        usernames = [username for username in usernames if username != from_username]
+
         if not (notification_data and usernames):
             return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user_ids = User.objects.filter(Q(username__in=usernames), ~Q(id=sender_id)).values_list('id', flat=True)
+        user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
 
         type_name = self.get_notification_type(notification_data['type'])
         notification_data['path'] = self.generate_full_path_url(notification_data['source'], notification_data['path'])
