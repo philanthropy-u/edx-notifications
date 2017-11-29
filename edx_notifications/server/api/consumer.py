@@ -170,13 +170,20 @@ class NotificationsList(AuthenticatedAPIView):
         HTTP POST Handler
         """
         notification_data = request.data.get('notification')
-        notification_data['from_user'] = request.data.get('fromUsername', '')
+        from_username = request.data.get('fromUsername', '')
+        notification_data['from_user'] = from_username
 
         usernames = request.data.get('usernames', [])
+        try:
+            usernames.remove(from_username)
+        except ValueError:
+            pass
+
         if not (notification_data and usernames):
             return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
 
         user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
+
         type_name = self.get_notification_type(notification_data['type'])
         notification_data['path'] = self.generate_full_path_url(notification_data['source'], notification_data['path'])
         msg_type = get_notification_type(type_name)
