@@ -26,7 +26,11 @@ class CustomTokenSessionAuthentication(BaseAuthentication):
 
         if request.COOKIES and request.COOKIES.get('sessionid'):
             username = json.loads(request.COOKIES.get('edx-user-info', '{}')).get('username')
-            user = User.objects.get(username=username)
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return None
+
             return (user, None)
 
         username = request.GET.get('username')
