@@ -206,6 +206,8 @@ class NotificationsList(AuthenticatedAPIView):
         Create absolute url from relative url, depending on source
         """
         #TODO: handle it dynamically
+        if notification_source == 'embed':
+            return settings.LMS_ROOT_URL + path
         return settings.NODEBB_ENDPOINT + path
 
 
