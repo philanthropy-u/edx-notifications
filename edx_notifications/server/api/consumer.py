@@ -3,11 +3,21 @@ Notification Consumer HTTP-based API enpoints
 """
 
 import logging
+import urlparse
 
+from django.conf import settings
+from django.http import Http404
+from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
+from student.models import User
 
-from django.http import Http404
+from edx_notifications import const
+from edx_notifications.data import NotificationMessage
+from edx_notifications.exceptions import (
+    ItemNotFoundError,
+)
+from edx_notifications.openedx.philu import PHILU_NOTIFICATION_PREFIX, NotificationSources
 
 from edx_notifications.lib.consumer import (
     get_notifications_count_for_user,
@@ -20,18 +30,12 @@ from edx_notifications.lib.consumer import (
     get_user_preference_by_name,
     set_user_notification_preference
 )
-
+from edx_notifications.lib.publisher import get_notification_type, \
+    bulk_publish_notification_to_users
 from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
-
-from edx_notifications.exceptions import (
-    ItemNotFoundError,
-)
-
-from edx_notifications import const
-
-from .api_utils import AuthenticatedAPIView
+from edx_notifications.server.api.api_utils import AuthenticatedAPIView
 
 LOG = logging.getLogger("api")
 
@@ -154,10 +158,57 @@ class NotificationsList(AuthenticatedAPIView):
             filters=filters,
             options=options,
         )
-
         resultset = [user_msg.get_fields() for user_msg in user_msgs]
+        response_data = {
+            'notifications': resultset,
+            'unread_count': sum([not notification['read_at'] for notification in resultset])
+        }
+        return Response(response_data, status.HTTP_200_OK)
 
-        return Response(resultset, status.HTTP_200_OK)
+    def post(self, request):
+        """
+        HTTP POST Handler
+        """
+        notification_data = request.data.get('notification')
+        from_username = request.data.get('fromUsername', '')
+        notification_data['from_user'] = from_username
+
+        usernames = request.data.get('usernames', [])
+        try:
+            usernames.remove(from_username)
+        except ValueError:
+            pass
+
+        if not (notification_data and usernames):
+            return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
+
+        type_name = self.get_notification_type(notification_data['type'])
+        notification_data['path'] = self.generate_full_path_url(notification_data['source'], notification_data['path'])
+        msg_type = get_notification_type(type_name)
+
+        msg = NotificationMessage(
+            msg_type=msg_type,
+            namespace=PHILU_NOTIFICATION_PREFIX,
+            payload=notification_data,
+        )
+        bulk_publish_notification_to_users(user_ids, msg)
+
+        return Response([], status.HTTP_200_OK)
+
+    def get_notification_type(self, notification_type):
+        # TODO: handle nodebb and edx notification types dynamically
+        return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
+
+    def generate_full_path_url(self, notification_source, path):
+        """
+        Create absolute url from relative url, depending on source
+        """
+        #TODO: handle it dynamically
+        if notification_source == 'embed':
+            return settings.LMS_ROOT_URL + path
+        return settings.NODEBB_ENDPOINT + path
 
 
 def _find_notification_by_id(user_id, msg_id):
@@ -261,6 +312,7 @@ class UserPreferenceList(AuthenticatedAPIView):
     """
     Returns all preference setting for the request.user
     """
+
     def get(self, request):
         """
         HTTP Get Handler
@@ -276,6 +328,7 @@ class UserPreferenceDetail(AuthenticatedAPIView):
     GET returns the specific preference setting for the authenticated request.user
     POST sets the preference for the authenticated request.user
     """
+
     def get(self, request, name):
         """
         HTTP Get Handler
@@ -313,8 +366,8 @@ class UserPreferenceDetail(AuthenticatedAPIView):
                 )
 
                 if is_digest_setting and value.lower() == 'true':
-                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if name \
-                        == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
+                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if \
+                        name == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
                         const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME
 
                     # turn off the other setting

@@ -72,7 +72,6 @@ urlpatterns = patterns(  # pylint: disable=invalid-name
         consumer_views.UserPreferenceDetail.as_view(),
         name='edx_notifications.consumer.user_preferences.detail.no_param'
     ),
-
 )
 
 urlpatterns = format_suffix_patterns(urlpatterns)  # pylint: disable=invalid-name
