@@ -187,8 +187,8 @@ class NotificationsList(AuthenticatedAPIView):
             return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
 
         user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
-        community_url = notification_data['categoryData']['slug']
-        notification_source = notification_data['source']
+        community_url = notification_data.get('categoryData', {}).get('slug', '')
+        notification_source = notification_data.get('source', 'nodebb')
 
         try:
             # notification should redirect to NodeBB if course hasn't started yet
@@ -198,6 +198,9 @@ class NotificationsList(AuthenticatedAPIView):
             if course_start_date > datetime.now(utc):
                 notification_source = 'nodebb'
         except IndexError:
+            # The above query tries to find the first record which matches the criteria
+            # if there are no such records then it returns an IndexError indicating
+            # that the notification has been generated from community side.
             # If community is purely NodeBB community then redirect to community
             notification_source = 'nodebb'
         except:
