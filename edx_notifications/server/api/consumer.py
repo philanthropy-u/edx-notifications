@@ -4,6 +4,8 @@ Notification Consumer HTTP-based API enpoints
 
 import logging
 import urlparse
+from datetime import datetime
+from pytz import utc
 
 from django.conf import settings
 from django.http import Http404
@@ -36,6 +38,8 @@ from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
 from edx_notifications.server.api.api_utils import AuthenticatedAPIView
+
+from nodebb.models import DiscussionCommunity
 
 LOG = logging.getLogger("api")
 
@@ -183,9 +187,31 @@ class NotificationsList(AuthenticatedAPIView):
             return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
 
         user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
+        community_url = notification_data.get('categoryData', {}).get('slug', '')
+        notification_source = notification_data.get('source', 'nodebb')
+
+        try:
+            # notification should redirect to NodeBB if course hasn't started yet
+            course_start_date = DiscussionCommunity.objects.raw('SELECT co.id, co.start \
+                FROM course_overviews_courseoverview AS co INNER JOIN nodebb_discussioncommunity \
+                AS dc ON co.id=dc.course_id WHERE dc.community_url="{}" LIMIT 1'.format(community_url))[0].start
+            if course_start_date > datetime.now(utc):
+                notification_source = 'nodebb'
+        except IndexError:
+            # The above query tries to find the first record which matches the criteria
+            # if there are no such records then it returns an IndexError indicating
+            # that the notification has been generated from community side.
+            # If community is purely NodeBB community then redirect to community
+            notification_source = 'nodebb'
+        except:
+            pass
 
         type_name = self.get_notification_type(notification_data['type'])
-        notification_data['path'] = self.generate_full_path_url(notification_data['source'], notification_data['path'])
+        notification_data['path'] = self.generate_full_path_url(
+            notification_source,
+            notification_data['embedPath'],
+            notification_data['nodebbPath']
+            )
         msg_type = get_notification_type(type_name)
 
         msg = NotificationMessage(
@@ -201,14 +227,13 @@ class NotificationsList(AuthenticatedAPIView):
         # TODO: handle nodebb and edx notification types dynamically
         return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
 
-    def generate_full_path_url(self, notification_source, path):
+    def generate_full_path_url(self, notification_source, embed_path, nodebb_path):
         """
         Create absolute url from relative url, depending on source
         """
-        #TODO: handle it dynamically
         if notification_source == 'embed':
-            return settings.LMS_ROOT_URL + path
-        return settings.NODEBB_ENDPOINT + path
+            return settings.LMS_ROOT_URL + embed_path
+        return settings.NODEBB_ENDPOINT + nodebb_path
 
 
 def _find_notification_by_id(user_id, msg_id):
