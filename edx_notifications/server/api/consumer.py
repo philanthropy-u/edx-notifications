@@ -40,8 +40,6 @@ from edx_notifications.renderers.renderer import (
 from edx_notifications.server.api.api_utils import AuthenticatedAPIView
 
 from nodebb.models import DiscussionCommunity
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-from opaque_keys.edx.keys import CourseKey
 
 LOG = logging.getLogger("api")
 
@@ -193,12 +191,14 @@ class NotificationsList(AuthenticatedAPIView):
         notification_source = notification_data['source']
 
         try:
+            # notification should redirect to NodeBB if course hasn't started yet
             course_start_date = DiscussionCommunity.objects.raw('SELECT co.id, co.start \
                 FROM course_overviews_courseoverview AS co INNER JOIN nodebb_discussioncommunity \
                 AS dc ON co.id=dc.course_id WHERE dc.community_url="{}" LIMIT 1'.format(community_url))[0].start
             if course_start_date > datetime.now(utc):
                 notification_source = 'nodebb'
         except IndexError:
+            # If community is purely NodeBB community then redirect to community
             notification_source = 'nodebb'
         except:
             pass
@@ -228,7 +228,6 @@ class NotificationsList(AuthenticatedAPIView):
         """
         Create absolute url from relative url, depending on source
         """
-        # TODO: handle it dynamically
         if notification_source == 'embed':
             return settings.LMS_ROOT_URL + embed_path
         return settings.NODEBB_ENDPOINT + nodebb_path
