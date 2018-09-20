@@ -18,7 +18,7 @@ class NotificationCountConsumer(WebsocketConsumer):
     def receive(self, user_id=None, text=None, bytes=None, **kwargs):
         cnt = get_notifications_count_for_user(
             int(user_id),
-            filters={'read': True, 'unread': True}
+            filters={'read': False, 'unread': True}
         )
 
         self.message.reply_channel.send({
