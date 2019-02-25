@@ -28,6 +28,7 @@ class NodeBBNotificationMessageTypes(object):
     FOLLOW = 'follow'
     UPVOTE = 'upvote'
     NEW_POST_FLAG = 'new-post-flag'
+    NEW_USER_FLAG = 'new-user-flag'
     MY_FLAGS = 'my-flags'
     BAN = 'ban'
     MENTION = 'mention'
