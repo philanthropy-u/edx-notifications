@@ -3,8 +3,9 @@ Notification Consumer HTTP-based API enpoints
 """
 
 import logging
-import urlparse
 from datetime import datetime
+
+from lms.djangoapps.courseware.courses import get_course_by_id
 from pytz import utc
 
 from django.conf import settings
@@ -39,7 +40,7 @@ from edx_notifications.renderers.renderer import (
 )
 from edx_notifications.server.api.api_utils import AuthenticatedAPIView
 
-from nodebb.models import DiscussionCommunity
+from nodebb.models import DiscussionCommunity, TeamGroupChat
 
 LOG = logging.getLogger("api")
 
@@ -190,26 +191,39 @@ class NotificationsList(AuthenticatedAPIView):
         community_url = notification_data.get('categoryData', {}).get('slug', '')
         notification_source = notification_data.get('source', 'nodebb')
 
-        try:
-            # notification should redirect to NodeBB if course hasn't started yet
-            course_start_date = DiscussionCommunity.objects.raw('SELECT co.id, co.start \
-                FROM course_overviews_courseoverview AS co INNER JOIN nodebb_discussioncommunity \
-                AS dc ON co.id=dc.course_id WHERE dc.community_url="{}" LIMIT 1'.format(community_url))[0].start
-            if course_start_date > datetime.now(utc):
+        if notification_source == "embed-team-view":
+            try:
+                team_chat_group = TeamGroupChat.objects.get(slug=community_url)
+                course = get_course_by_id(team_chat_group.team.course_id)
+                course_start_date = course.start
+                if course_start_date > datetime.now(utc):
+                    notification_source = 'nodebb'
+            except TeamGroupChat.DoesNotExist:
+                notification_source = "nodebb"
+            except:
+                pass
+        else:
+            try:
+                # notification should redirect to NodeBB if course hasn't started yet
+                course_start_date = DiscussionCommunity.objects.raw('SELECT co.id, co.start \
+                    FROM course_overviews_courseoverview AS co INNER JOIN nodebb_discussioncommunity \
+                    AS dc ON co.id=dc.course_id WHERE dc.community_url="{}" LIMIT 1'.format(community_url))[0].start
+                if course_start_date > datetime.now(utc):
+                    notification_source = 'nodebb'
+            except IndexError:
+                # The above query tries to find the first record which matches the criteria
+                # if there are no such records then it returns an IndexError indicating
+                # that the notification has been generated from community side.
+                # If community is purely NodeBB community then redirect to community
                 notification_source = 'nodebb'
-        except IndexError:
-            # The above query tries to find the first record which matches the criteria
-            # if there are no such records then it returns an IndexError indicating
-            # that the notification has been generated from community side.
-            # If community is purely NodeBB community then redirect to community
-            notification_source = 'nodebb'
-        except:
-            pass
+            except:
+                pass
 
         type_name = self.get_notification_type(notification_data['type'])
         notification_data['path'] = self.generate_full_path_url(
             notification_source,
             notification_data['embedPath'],
+            notification_data['teamEmbedPath'],
             notification_data['nodebbPath']
             )
         msg_type = get_notification_type(type_name)
@@ -227,12 +241,14 @@ class NotificationsList(AuthenticatedAPIView):
         # TODO: handle nodebb and edx notification types dynamically
         return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
 
-    def generate_full_path_url(self, notification_source, embed_path, nodebb_path):
+    def generate_full_path_url(self, notification_source, embed_path, team_embed_path, nodebb_path):
         """
         Create absolute url from relative url, depending on source
         """
         if notification_source == 'embed':
             return settings.LMS_ROOT_URL + embed_path
+        elif notification_source == "embed-team-view":
+            return settings.LMS_ROOT_URL + team_embed_path
         return settings.NODEBB_ENDPOINT + nodebb_path
 
 
