@@ -3,11 +3,24 @@ Notification Consumer HTTP-based API enpoints
 """
 
 import logging
+from datetime import datetime
 
+from lms.djangoapps.courseware.courses import get_course_by_id
+from pytz import utc
+
+from django.conf import settings
+from django.http import Http404
+from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
+from student.models import User
 
-from django.http import Http404
+from edx_notifications import const
+from edx_notifications.data import NotificationMessage
+from edx_notifications.exceptions import (
+    ItemNotFoundError,
+)
+from edx_notifications.openedx.philu import PHILU_NOTIFICATION_PREFIX, NotificationSources
 
 from edx_notifications.lib.consumer import (
     get_notifications_count_for_user,
@@ -20,18 +33,14 @@ from edx_notifications.lib.consumer import (
     get_user_preference_by_name,
     set_user_notification_preference
 )
-
+from edx_notifications.lib.publisher import get_notification_type, \
+    bulk_publish_notification_to_users
 from edx_notifications.renderers.renderer import (
     get_all_renderers,
 )
+from edx_notifications.server.api.api_utils import AuthenticatedAPIView
 
-from edx_notifications.exceptions import (
-    ItemNotFoundError,
-)
-
-from edx_notifications import const
-
-from .api_utils import AuthenticatedAPIView
+from nodebb.models import DiscussionCommunity, TeamGroupChat
 
 LOG = logging.getLogger("api")
 
@@ -154,10 +163,93 @@ class NotificationsList(AuthenticatedAPIView):
             filters=filters,
             options=options,
         )
-
         resultset = [user_msg.get_fields() for user_msg in user_msgs]
+        response_data = {
+            'notifications': resultset,
+            'unread_count': sum([not notification['read_at'] for notification in resultset])
+        }
+        return Response(response_data, status.HTTP_200_OK)
 
-        return Response(resultset, status.HTTP_200_OK)
+    def post(self, request):
+        """
+        HTTP POST Handler
+        """
+        notification_data = request.data.get('notification')
+        from_username = request.data.get('fromUsername', '')
+        notification_data['from_user'] = from_username
+
+        usernames = request.data.get('usernames', [])
+        try:
+            usernames.remove(from_username)
+        except ValueError:
+            pass
+
+        if not (notification_data and usernames):
+            return JsonResponse({"message": "Invalid notification payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_ids = User.objects.filter(username__in=usernames).values_list('id', flat=True)
+        community_url = notification_data.get('categoryData', {}).get('slug', '')
+        notification_source = notification_data.get('source', 'nodebb')
+
+        if notification_source == "embed-team-view":
+            try:
+                team_chat_group = TeamGroupChat.objects.get(slug=community_url)
+                course = get_course_by_id(team_chat_group.team.course_id)
+                course_start_date = course.start
+                if course_start_date > datetime.now(utc):
+                    notification_source = 'nodebb'
+            except TeamGroupChat.DoesNotExist:
+                notification_source = "nodebb"
+            except:
+                pass
+        else:
+            try:
+                # notification should redirect to NodeBB if course hasn't started yet
+                course_start_date = DiscussionCommunity.objects.raw('SELECT co.id, co.start \
+                    FROM course_overviews_courseoverview AS co INNER JOIN nodebb_discussioncommunity \
+                    AS dc ON co.id=dc.course_id WHERE dc.community_url="{}" LIMIT 1'.format(community_url))[0].start
+                if course_start_date > datetime.now(utc):
+                    notification_source = 'nodebb'
+            except IndexError:
+                # The above query tries to find the first record which matches the criteria
+                # if there are no such records then it returns an IndexError indicating
+                # that the notification has been generated from community side.
+                # If community is purely NodeBB community then redirect to community
+                notification_source = 'nodebb'
+            except:
+                pass
+
+        type_name = self.get_notification_type(notification_data['type'])
+        notification_data['path'] = self.generate_full_path_url(
+            notification_source,
+            notification_data['embedPath'],
+            notification_data['teamEmbedPath'],
+            notification_data['nodebbPath']
+            )
+        msg_type = get_notification_type(type_name)
+
+        msg = NotificationMessage(
+            msg_type=msg_type,
+            namespace=PHILU_NOTIFICATION_PREFIX,
+            payload=notification_data,
+        )
+        bulk_publish_notification_to_users(user_ids, msg)
+
+        return Response([], status.HTTP_200_OK)
+
+    def get_notification_type(self, notification_type):
+        # TODO: handle nodebb and edx notification types dynamically
+        return '%s.%s' % (PHILU_NOTIFICATION_PREFIX, notification_type)
+
+    def generate_full_path_url(self, notification_source, embed_path, team_embed_path, nodebb_path):
+        """
+        Create absolute url from relative url, depending on source
+        """
+        if notification_source == 'embed':
+            return settings.LMS_ROOT_URL + embed_path
+        elif notification_source == "embed-team-view":
+            return settings.LMS_ROOT_URL + team_embed_path
+        return settings.NODEBB_ENDPOINT + nodebb_path
 
 
 def _find_notification_by_id(user_id, msg_id):
@@ -261,6 +353,7 @@ class UserPreferenceList(AuthenticatedAPIView):
     """
     Returns all preference setting for the request.user
     """
+
     def get(self, request):
         """
         HTTP Get Handler
@@ -276,6 +369,7 @@ class UserPreferenceDetail(AuthenticatedAPIView):
     GET returns the specific preference setting for the authenticated request.user
     POST sets the preference for the authenticated request.user
     """
+
     def get(self, request, name):
         """
         HTTP Get Handler
@@ -313,8 +407,8 @@ class UserPreferenceDetail(AuthenticatedAPIView):
                 )
 
                 if is_digest_setting and value.lower() == 'true':
-                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if name \
-                        == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
+                    other_setting = const.NOTIFICATION_DAILY_DIGEST_PREFERENCE_NAME if \
+                        name == const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME else \
                         const.NOTIFICATION_WEEKLY_DIGEST_PREFERENCE_NAME
 
                     # turn off the other setting
