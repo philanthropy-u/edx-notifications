@@ -9,3 +9,4 @@ PyContracts==1.7.1
 underscore.py==0.1.6
 pynliner==0.5.2
 git+https://github.com/milesrichardson/ParsePy.git
+freezegun==0.3.11
