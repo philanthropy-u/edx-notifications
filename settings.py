@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+# -*- coding: utf-8 -*
 """
 Django settings file for local development purposes
 """
@@ -14,7 +16,7 @@ TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
 TEST_ROOT = "tests"
 TRANSACTIONS_MANAGED = {}
 USE_TZ = True
-TIME_ZONE = {}
+TIME_ZONE = 'UTC'
 SECRET_KEY='SHHHHHH'
 
 DATABASES = {
@@ -50,6 +52,29 @@ if not TEST_MODE:
         }
     })
 
+
+js_info_dict = {
+    # 'packages': 'edx_notifications.server.web',
+ }
+LANGUAGE_CODE = 'en'
+LANGUAGES = (
+    ('en', u'English '),
+    ('ar', u'العربية'),  # Arabic
+    ('Ar-sa', u'Arabic'),  # Arabic Saudi Arabia
+    ('zh', u'中文(简体)'),
+    ('ES419', u'Latin Spanish'),
+    ('es', u'Español'),
+    ('ja', u'Japanese'),
+    ('de', u'German'),
+    ('fr', u'french'),
+    ('nl', u'Dutch '),
+    ('pt', u'Português')
+)
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+    os.path.join(BASE_DIR, 'static_cache/locale'),
+]
+
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -62,7 +87,11 @@ ROOT_URLCONF = 'edx_notifications.server.urls'
 
 WSGI_APPLICATION = 'edx_notifications.server.wsgi.application'
 
-TEMPLATE_DIRS = ['edx_notifications/server/web/templates']
+
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': ['edx_notifications/server/web/templates']
+}]
 
 NOTIFICATION_STORE_PROVIDER = {
     "class": "edx_notifications.stores.sql.store_provider.SQLNotificationStoreProvider",
