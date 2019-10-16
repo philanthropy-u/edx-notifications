@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+# -*- coding: utf-8 -*
 """
 Django settings for edx_notifications test project.
 For more information on this file, see
@@ -18,7 +20,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 # SECURITY WARNING: don't run with debug turned on in production!
 # This is just a container for running tests
 DEBUG = True
-TEMPLATE_DEBUG = True
 SECRET_KEY='SHHHHHH'
 
 # Application definition
@@ -37,8 +38,28 @@ INSTALLED_APPS = (
     'django_nose',
 )
 
+
+LANGUAGE_COOKIE_NAME = "openedx-language-preference"
+LANGUAGES = (
+    ('en', u'English '),
+    ('ar', u'العربية'),  # Arabic
+    ('es', u'Español'),
+    ('nl', u'Dutch '),
+    ('pt', u'Português'),
+    ('zh-ch', u'中文(简体)'),
+    ('fr', u'Français'),
+    ('jp', u'日本人'),
+    ('de', u'Deutsche'),
+)
+
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
+
 MIDDLEWARE_CLASSES = (
+
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -64,15 +85,23 @@ ROOT_URLCONF = 'testserver.urls'
 
 WSGI_APPLICATION = 'testserver.wsgi.application'
 
-TEMPLATE_LOADERS = (
-    'django.template.loaders.filesystem.Loader',
-    'django.template.loaders.app_directories.Loader',
-)
 
-TEMPLATE_DIRS = [
-    os.path.join(BASE_DIR, 'testserver/templates'),
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR, 'testserver/templates')],
+        'OPTIONS': {
+            'debug': True,
+            'context_processors': [
+                'django.contrib.auth.context_processors.auth',
+            ],
+            'loaders': [
+                'django.template.loaders.filesystem.Loader',
+                'django.template.loaders.app_directories.Loader',
+            ]
+        },
+    }
 ]
-
 
 # Database
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
@@ -88,11 +117,10 @@ DATABASES = {
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
 
-USE_I18N = True
+USE_I18N = False
 
 USE_L10N = True
 
