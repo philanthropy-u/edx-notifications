@@ -44,7 +44,7 @@ class CustomTokenSessionAuthentication(BaseAuthentication):
         except User.DoesNotExist:
             return None
 
-        if not token == settings.NODEBB_MASTER_TOKEN or not user.is_active:
+        if not token == settings.NODEBB_MASTER_TOKEN:
             return None
 
         return (user, None)
